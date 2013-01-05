@@ -39,7 +39,6 @@ object HttpConstants {
   val PERCENT = ByteString("%")
   val PATH = ByteString("/")
   val QUERY = ByteString("?")
->>>>>>> a8ace1b9563b4975f56c67308b9e372bcd057908
 }
 
 /**
