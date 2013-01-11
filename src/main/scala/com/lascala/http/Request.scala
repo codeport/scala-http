@@ -1,8 +1,3 @@
-/**
- * la-scala http server
- * source from http://doc.akka.io/docs/akka/2.1.0/scala/io.html
- */
-
 /*
  * This software is licensed under the Apache 2 license, quoted below.
  *  
@@ -20,17 +15,14 @@
  * License for the specific language governing permissions and limitations under
  * the License. 
  */
+package com.lascala.http
 
-package common
-
-import akka.actor._
-import com.lascala.http._
+import akka.util.ByteString
 
 /**
- * Main
- */ 
-object Main extends App {
-  val port = Option(System.getenv("PORT")) map (_.toInt) getOrElse 8080
-  val system = ActorSystem()
-  val server = system.actorOf(Props(new HttpServer(port)))
-}
+ * http request 객체 및
+ * request Header 객체
+ */
+case class Request(meth: String, path: List[String], query: Option[String], httpver: String, headers: List[Header], body: Option[ByteString])
+
+case class Header(name: String, value: String)
