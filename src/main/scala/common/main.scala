@@ -25,7 +25,11 @@ package common
 
 import akka.actor._
 import com.lascala.http._
+import com.lascala.http.HttpResponse._
 import akka.util.ByteString
+import java.io.File
+import org.apache.tika.Tika
+import java.io.FileInputStream
 
 /**
  * Sample Demo Application
@@ -37,18 +41,26 @@ object Main extends App {
 }
 
 class RequestHandler extends Actor {
+  val docroot = "."
+
+  def readFile(file: File) = {
+    val resource = new Array[Byte](file.length.toInt)
+    val in = new FileInputStream(file)
+    in.read(resource)
+    in.close()
+    ByteString(resource)
+  }
+
+  def mimeType(file: File) = new Tika().detect(file)
+
   def receive = {
-    case HttpRequest("GET", "ping" :: Nil, _, _, headers, _) => {
-      sender ! OKResponse(
-        ByteString("<p>pong</p>"),
-        headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
-    }
-    case req: HttpRequest => {
-      sender ! OKResponse(
-        ByteString("<p>" + req.toString + "</p>"),
-        req.headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
-    }
+    case HttpRequest("GET", pathSegments, _, _, _, _) =>
+      new File(docroot, "/" + pathSegments.mkString(File.separator)) match {
+        case file if file.isFile() =>
+          sender ! OKResponse(readFile(file), true, mimeType(file))
+        case _ =>
+          sender ! NotFoundError
+      }
+    case _ => sender ! MethodNotAllowedError
   }
 }
-
-

@@ -23,16 +23,18 @@ import HttpConstants._
 trait HttpResponse {
   def body: ByteString
   def status: ByteString
+  def reason: ByteString
   def mimeType: String
   def shouldKeepAlive: Boolean
 
   // default charset to utf-8 for now but should be editable in the future
-  def contentType   = ByteString(s"Content-Type: ${mimeType}; charset = utf-8")
+  def contentType   = if (!mimeType.isEmpty) ByteString(s"Content-Type: ${mimeType}") else ByteString("")
   def cacheControl  = ByteString("Cache-Control: no-cache")
   def contentLength = ByteString(s"Content-Length: ${body.length.toString}")
 }
 
 object HttpResponse {
+  val version = ByteString("HTTP/1.1")
   val date = ByteString("Date: ")
   val server = ByteString("Server: lascala-http")
   val connection = ByteString("Connection: ")
@@ -41,7 +43,7 @@ object HttpResponse {
 	
   def bytes(rsp: HttpResponse) = {
     (new ByteStringBuilder ++=
-    rsp.status ++= CRLF ++=
+    version ++= SP ++= rsp.status ++= SP ++= rsp.reason ++= CRLF ++=
     (if(rsp.body.nonEmpty) rsp.contentType ++ CRLF else ByteString.empty) ++=
     rsp.cacheControl ++= CRLF ++=
     date ++= ByteString(new java.util.Date().toString) ++= CRLF ++=
@@ -52,11 +54,23 @@ object HttpResponse {
 }
 
 case class OKResponse(body: ByteString, shouldKeepAlive: Boolean = true, mimeType: String = "text/html") extends HttpResponse {
-  val status = ByteString("HTTP/1.1 200 OK")
+  val status = ByteString("200")
+  val reason = ByteString("OK")
 }
-case class InternalServerError(body: ByteString = ByteString.empty, mimeType: String = "") extends HttpResponse {
-  val status = ByteString("HTTP/1.1 500 Internal Server Error")
-  val shouldKeepAlive: Boolean = false
+
+case class NotFoundError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
+  val status = ByteString("404")
+  val reason = ByteString("Not Found")
+}
+
+case class MethodNotAllowedError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
+  val status = ByteString("405")
+  val reason = ByteString("Method Not Allowed")
+}
+
+case class InternalServerError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
+  val status = ByteString("500")
+  val reason = ByteString("Internal Server Error")
 }
 
 /**
