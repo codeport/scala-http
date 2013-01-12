@@ -23,6 +23,12 @@ import akka.util.ByteString
  * http request 객체 및
  * request Header 객체
  */
-case class Request(meth: String, path: List[String], query: Option[String], httpver: String, headers: List[Header], body: Option[ByteString])
+case class HttpRequest(
+  meth: String, 
+  path: List[String], 
+  query: Option[String],
+  httpver: String, 
+  headers: List[Header], 
+  body: Option[ByteString])
 
 case class Header(name: String, value: String)

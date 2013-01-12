@@ -18,52 +18,63 @@
 package com.lascala.http
 
 import akka.actor._
-import akka.util.ByteString
 import java.net.InetSocketAddress
+import util.{Success, Failure}
 
 object HttpServer {
   import HttpIteratees._
-	
-  def processRequest(socket: IO.SocketHandle): IO.Iteratee[Unit] = {
+  import akka.pattern.ask
+  import akka.util.Timeout
+  import concurrent.ExecutionContext.Implicits.global
+
+  def processRequest(socket: IO.SocketHandle, handler: ActorRef): IO.Iteratee[Unit] = {
+    def processResponse(response: HttpResponse) {
+      socket write HttpResponse.bytes(response).compact
+      if (!response.shouldKeepAlive) socket.close()
+    }
+
+    // Never timeout for now. We need to make this configurate in the future
+    implicit val timeout = new Timeout(20000)
+
     IO repeat {
       for {
         request <- readRequest
       } yield {
-        val rsp = request match {
-          case Request("GET", "ping" :: Nil, _, _, headers, _) => {
-						OKResponse(ByteString("<p>pong</p>"), request.headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
-					}
-          case req => {
-						OKResponse(ByteString("<p>" + req.toString + "</p>"), request.headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
-					}
+        // Future 를 이용해서 asynchronously receive and handle response
+        val future = handler ? request
+        future.mapTo[HttpResponse].onComplete {
+          case Success(response: HttpResponse) => processResponse(response)
+          case Failure(error)                  => processResponse(InternalServerError())
         }
-        socket write OKResponse.bytes(rsp).compact
-        if (!rsp.keepAlive) socket.close()
       }
     }	
 	}
 }
 
-class HttpServer(port: Int) extends Actor {
-  val state = IO.IterateeRef.Map.async[IO.Handle]()(context.dispatcher)
-	
-  override def preStart {
-    IOManager(context.system) listen new InetSocketAddress(port)
-  }
-	
-  def receive = {
-    case IO.NewClient(server) => {
-			val socket = server.accept()
-			state(socket) flatMap (_ => HttpServer.processRequest(socket))
-		}
+class HttpServer(handler: ActorRef, port: Int) {
 
-    case IO.Read(socket, bytes) => {
-			state(socket)(IO Chunk bytes)
-		}
-		
-    case IO.Closed(socket, cause) => {
-			state(socket)(IO EOF)
-			state -= socket
-		}
+  private class HttpServerActor extends Actor {
+
+    val state = IO.IterateeRef.Map.async[IO.Handle]()(context.dispatcher)
+
+    override def preStart {
+      IOManager(context.system) listen new InetSocketAddress(port)
+    }
+
+    def receive = {
+      case IO.NewClient(server) => {
+        val socket = server.accept()
+        state(socket) flatMap (_ => HttpServer.processRequest(socket, handler))
+      }
+      case IO.Read(socket, bytes) => {
+        state(socket)(IO Chunk bytes)
+      }
+      case IO.Closed(socket, cause) => {
+        state(socket)(IO EOF)
+        state -= socket
+      }
+    }
   }
+
+  ActorSystem().actorOf(Props(new HttpServerActor))
 }

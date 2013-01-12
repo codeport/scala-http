@@ -25,12 +25,30 @@ package common
 
 import akka.actor._
 import com.lascala.http._
+import akka.util.ByteString
 
 /**
- * Main
+ * Sample Demo Application
  */ 
 object Main extends App {
   val port = Option(System.getenv("PORT")) map (_.toInt) getOrElse 8080
-  val system = ActorSystem()
-  val server = system.actorOf(Props(new HttpServer(port)))
+  val requestHandler = ActorSystem().actorOf(Props[RequestHandler])
+  new HttpServer(requestHandler, port)
 }
+
+class RequestHandler extends Actor {
+  def receive = {
+    case HttpRequest("GET", "ping" :: Nil, _, _, headers, _) => {
+      sender ! OKResponse(
+        ByteString("<p>pong</p>"),
+        headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+    }
+    case req: HttpRequest => {
+      sender ! OKResponse(
+        ByteString("<p>" + req.toString + "</p>"),
+        req.headers.exists { case Header(n, v) => n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+    }
+  }
+}
+
+

@@ -33,7 +33,7 @@ object HttpIteratees {
       (meth, (path, query), httpver) = requestLine
       headers <- readHeaders
       body <- readBody(headers)
-    } yield Request(meth, path, query, httpver, headers, body)
+    } yield HttpRequest(meth, path, query, httpver, headers, body)
 	}
 	
 	def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
