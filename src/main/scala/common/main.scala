@@ -26,10 +26,9 @@ package common
 import akka.actor._
 import com.lascala.http._
 import com.lascala.http.HttpResponse._
+import com.lascala.http.HttpConstants._
 import akka.util.ByteString
 import java.io.File
-import org.apache.tika.Tika
-import java.io.FileInputStream
 
 /**
  * Sample Demo Application
@@ -43,24 +42,17 @@ object Main extends App {
 class RequestHandler extends Actor {
   val docroot = "."
 
-  def readFile(file: File) = {
-    val resource = new Array[Byte](file.length.toInt)
-    val in = new FileInputStream(file)
-    in.read(resource)
-    in.close()
-    ByteString(resource)
-  }
-
-  def mimeType(file: File) = new Tika().detect(file)
-
   def receive = {
-    case HttpRequest("GET", pathSegments, _, _, _, _) =>
+    case HttpRequest("GET", pathSegments, _, _, headers, _) =>
       new File(docroot, "/" + pathSegments.mkString(File.separator)) match {
         case file if file.isFile() =>
-          sender ! OKResponse(readFile(file), true, mimeType(file))
+          headers.find(_.name.toLowerCase == "if-modified-since") match {
+            case Some(d) if HttpResponse.httpDateFormat.parse(d.value).compareTo(new java.util.Date(file.lastModified)) != -1 => sender ! NotModifiedResponse()
+            case _ => sender ! OKFileResponse(file, true)
+          }
         case _ =>
-          sender ! NotFoundError
+          sender ! NotFoundError()
       }
-    case _ => sender ! MethodNotAllowedError
+    case _ => sender ! MethodNotAllowedError()
   }
 }
