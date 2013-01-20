@@ -32,7 +32,7 @@ import util.Failure
 import com.lascala.libs.Enumerator
 
 trait HttpResponse {
-  def lastModified: Date = null
+  def lastModified: Date
   def body: ByteString
   def status: ByteString
   def reason: ByteString
@@ -60,6 +60,14 @@ object HttpResponse {
   }
 
   def httpDate(date: Date) = ByteString(httpDateFormat.format(date))
+
+	def readFile(file: File) = {
+    val resource = new Array[Byte](file.length.toInt)
+    val in = new FileInputStream(file)
+    in.read(resource)
+    in.close()
+    ByteString(resource)
+  }
 
   def bytes(rsp: HttpResponse) = {
     (new ByteStringBuilder ++=
@@ -103,23 +111,17 @@ trait ChunkedEncodable extends HttpResponse {
   def chunkedData: Enumerator[ByteString]
 }
 
-case class OKFileResponse(file: File, shouldKeepAlive: Boolean = true) extends HttpResponse {
-  val body     = readFile(file)
-  val mimeType = new Tika().detect(file)
-  val status   = ByteString("200")
-  val reason   = ByteString("OK")
- 
- override def lastModified = new Date(file.lastModified)
-	def readFile(file: File) = {
-    val resource = new Array[Byte](file.length.toInt)
-    val in = new FileInputStream(file)
-    in.read(resource)
-    in.close()
-    ByteString(resource)
-  }
+object OKResponse {
+  import HttpResponse._
+
+  def withFile(file: File) = OKResponse(
+    body = readFile(file),
+    shouldKeepAlive = true,
+    mimeType = new Tika().detect(file),
+    lastModified = new Date(file.lastModified))
 }
 
-case class OKResponse(body: ByteString, shouldKeepAlive: Boolean = true, mimeType: String = "text/html") extends HttpResponse {
+case class OKResponse(body: ByteString, shouldKeepAlive: Boolean = true, mimeType: String = "text/html", lastModified: Date = null) extends HttpResponse {
   val status = ByteString("200")
   val reason = ByteString("OK")
 
@@ -142,19 +144,23 @@ object OKResponse {
 case class NotModifiedResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("304")
   val reason = ByteString("Not Modified")
+  val lastModified = null;
 }
 
 case class NotFoundError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("404")
   val reason = ByteString("Not Found")
+  val lastModified = null;
 }
 
 case class MethodNotAllowedError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("405")
   val reason = ByteString("Method Not Allowed")
+  val lastModified = null;
 }
 
 case class InternalServerError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("500")
   val reason = ByteString("Internal Server Error")
+  val lastModified = null;
 }

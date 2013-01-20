@@ -54,7 +54,7 @@ class RequestHandler extends Actor {
         case file if file.isFile() =>
           headers.find(_.name.toLowerCase == "if-modified-since") match {
             case Some(d) if HttpResponse.httpDateFormat.parse(d.value).compareTo(new java.util.Date(file.lastModified)) != -1 => sender ! NotModifiedResponse()
-            case _ => sender ! OKFileResponse(file, true)
+            case _ => sender ! OKResponse.withFile(file)
           }
         case _ => sender ! NotFoundError()
       }
