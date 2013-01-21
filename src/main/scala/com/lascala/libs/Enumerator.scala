@@ -61,11 +61,27 @@ trait Enumerator[T] {
     }
   }
 
-  def next: Option[Enumerator[T]] = None 
+  def next: Option[Enumerator[T]] = None
 
-  def andThen(other: Enumerator[T]) = new Enumerator[T] {
-    def future: Future[Option[T]] = parent.future
-    override def next = Some(other)
+  /**
+   * 여러 Enumerator 들을 연결시켜 주는 메소드
+   *
+   * @param other
+   * @return
+   */
+  def andThen(other: Enumerator[T]) = {
+    def _chainOtherEnumerators(current: Option[Enumerator[T]], other: Enumerator[T]): Option[Enumerator[T]] = current match {
+      case Some(curr) => Some(new Enumerator[T] {
+        def future = curr.future
+        override def next = _chainOtherEnumerators(curr.next, other)
+      })
+      case None => Some(other)
+    }
+
+    new Enumerator[T] {
+      def future: Future[Option[T]] = parent.future
+      override def next = _chainOtherEnumerators(parent.next, other)
+    }
   }
 }
 
