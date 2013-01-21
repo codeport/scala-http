@@ -17,11 +17,13 @@ object Resolvers {
 }
 
 object Dependencies {
-  val akka      = "com.typesafe.akka" % "akka-actor_2.10" % "2.1.0"
-  val tika      = "org.apache.tika"   % "tika-core"       % "1.2"
-  val scalaTest = "org.scalatest"     % "scalatest_2.10"  % "1.9.1" % "test"
+  val akka      = "com.typesafe.akka" % "akka-actor_2.10"   % "2.1.0"
+  val akkaTest  = "com.typesafe.akka" % "akka-testkit_2.10" % "2.1.0" % "test"
+  val tika      = "org.apache.tika"   % "tika-core"         % "1.2"
+  val scalaTest = "org.scalatest"     % "scalatest_2.10"    % "1.9.1" % "test"
   val coreDeps  = Seq(
     akka,
+    akkaTest,
     tika,
     scalaTest
   )
