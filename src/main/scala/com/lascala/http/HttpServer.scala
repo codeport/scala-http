@@ -29,7 +29,12 @@ object HttpServer {
 
   def processRequest(socket: IO.SocketHandle, handler: ActorRef): IO.Iteratee[Unit] = {
     def processResponse(response: HttpResponse) {
-      socket write HttpResponse.bytes(response).compact
+      response match {
+        case chunkEncoded: HttpResponse with ChunkedEncodable =>
+          HttpResponse.stream(chunkEncoded, socket)
+        case _ => socket write HttpResponse.bytes(response).compact
+      }
+      
       if (!response.shouldKeepAlive) socket.close()
     }
 
