@@ -19,6 +19,7 @@ package com.lascala.http
 
 import akka.actor._
 import akka.util.ByteString
+import HttpRequest._
 
 /**
  * iteratee: http://www.haskell.org/haskellwiki/Iteratee_I/O
@@ -33,7 +34,7 @@ object HttpIteratees {
       (meth, (path, query), httpver) = requestLine
       headers <- readHeaders
       body <- readBody(headers)
-    } yield HttpRequest(meth, path, query, httpver, headers, body)
+    } yield HttpRequest(meth, path, query, httpver, Headers(headers), body)
 	}
 	
 	def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim

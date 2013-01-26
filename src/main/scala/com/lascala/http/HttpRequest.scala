@@ -28,7 +28,11 @@ case class HttpRequest(
   path: List[String], 
   query: Option[String],
   httpver: String, 
-  headers: List[Header], 
+  headers: Headers,
   body: Option[ByteString])
 
 case class Header(name: String, value: String)
+
+case class Headers(headers: List[Header]) {
+  def get(name: String) = headers.find(_.name.toLowerCase == name.toLowerCase)
+}

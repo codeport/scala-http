@@ -26,11 +26,16 @@ package common
 import akka.actor._
 import com.lascala.http._
 import com.lascala.http.HttpResponse._
+import com.lascala.http.HttpDate._
 import com.lascala.http.HttpConstants._
 import akka.util.ByteString
 import java.io.File
 import com.lascala.libs.Enumerator
 import org.apache.tika.Tika
+import java.util.Date
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Sample Demo Application
@@ -44,6 +49,29 @@ object Main extends App {
 class RequestHandler extends Actor {
   val docroot = "."
 
+  def matchETag(headerValue: String, etag: String) =
+    headerValue == "*" || headerValue == etag
+
+  def matchETag(headerValue: String, file: File): Boolean =
+    matchETag(headerValue, computeETag(file))
+
+  def isModified(file: File, headers: Headers) =
+    headers.get("if-modified-since") match {
+      case Some(Header(_, value)) =>
+      HttpDate(value).asDate.compareTo(HttpDate(file.lastModified).asDate) match {
+        case -1 => false
+        case 0 => headers.get("if-match") match {
+          case Some(Header(_, value)) => matchETag(value, file)
+          case _ => headers.get("if-none-match") match {
+            case Some(Header(_, value)) => !matchETag(value, file)
+            case _ => false
+          }
+        }
+        case _ => true
+      }
+      case _ => true
+    }
+
   def receive = {
     case HttpRequest("GET", List("chunked"), _, _, headers, _) => 
       sender !  OKResponse.stream(getEnumerator)
@@ -52,10 +80,8 @@ class RequestHandler extends Actor {
     case HttpRequest("GET", pathSegments, _, _, headers, _) => 
       new File(docroot, "/" + pathSegments.mkString(File.separator)) match {
         case file if file.isFile() =>
-          headers.find(_.name.toLowerCase == "if-modified-since") match {
-            case Some(d) if HttpResponse.httpDateFormat.parse(d.value).compareTo(new java.util.Date(file.lastModified)) != -1 => sender ! NotModifiedResponse()
-            case _ => sender ! OKResponse.withFile(file)
-          }
+          if (isModified(file, headers)) sender ! OKResponse.fromFile(file)
+          else sender ! NotModifiedResponse()
         case _ => sender ! NotFoundError()
       }
     case _ => sender ! MethodNotAllowedError()

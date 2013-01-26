@@ -30,9 +30,14 @@ import java.util.TimeZone
 import akka.actor.IO
 import util.Failure
 import com.lascala.libs.Enumerator
+import java.security.MessageDigest
+import java.security.DigestInputStream
+import java.io.BufferedInputStream
+import com.lascala.http.HttpDate._
 
 trait HttpResponse {
   def lastModified: Date
+  def etag: ByteString
   def body: ByteString
   def status: ByteString
   def reason: ByteString
@@ -52,14 +57,7 @@ object HttpResponse {
   val close        = ByteString("Close")
   val date         = ByteString("Date: ")
   val lastModified = ByteString("Last-Modified: ")
-
-  def httpDateFormat = {
-    val dateFormat = new SimpleDateFormat(RFC1123_DATE_PATTERN, Locale.ENGLISH)
-    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"))
-    dateFormat
-  }
-
-  def httpDate(date: Date) = ByteString(httpDateFormat.format(date))
+  val etag = ByteString("ETag: ")
 
 	def readFile(file: File) = {
     val resource = new Array[Byte](file.length.toInt)
@@ -69,13 +67,21 @@ object HttpResponse {
     ByteString(resource)
   }
 
+  def computeETag(file: File) = {
+    val algorithm = MessageDigest.getInstance("SHA1")
+    val dis = new DigestInputStream(new BufferedInputStream(new FileInputStream(file)), algorithm)
+    while (dis.read() != -1) {}
+    algorithm.digest().fold("")(_ + "%02x" format _).toString
+  }
+
   def bytes(rsp: HttpResponse) = {
     (new ByteStringBuilder ++=
     version ++= SP ++= rsp.status ++= SP ++= rsp.reason ++= CRLF ++=
     (if(rsp.body.nonEmpty || rsp.mimeType.nonEmpty) rsp.contentType ++ CRLF else ByteString.empty) ++=
     rsp.cacheControl ++= CRLF ++=
-    date ++= httpDate(new Date) ++= CRLF ++=
-    Option(rsp.lastModified).map(lastModified ++ httpDate(_) ++ CRLF).getOrElse(ByteString("")) ++=
+    date ++= ByteString(HttpDate(new Date).asString) ++= CRLF ++=
+    Option(rsp.lastModified).map((v) => lastModified ++ ByteString(HttpDate(v).asString) ++ CRLF).getOrElse(ByteString("")) ++=
+    Option(rsp.etag).map(etag ++ _ ++ CRLF).getOrElse(ByteString("")) ++=
     server ++= CRLF ++=
     rsp.contentLength ++= CRLF ++=
     connection ++= (if (rsp.shouldKeepAlive) keepAlive else close) ++= CRLF ++= CRLF ++= rsp.body).result
@@ -86,8 +92,8 @@ object HttpResponse {
       version ++= SP ++= rsp.status ++= SP ++= rsp.reason ++= CRLF ++=
       rsp.contentType ++ CRLF ++=
       rsp.cacheControl ++= CRLF ++=
-      date ++= httpDate(new Date) ++= CRLF ++=
-      Option(rsp.lastModified).map(lastModified ++ httpDate(_) ++ CRLF).getOrElse(ByteString("")) ++=
+      date ++= ByteString(HttpDate(new Date).asString) ++= CRLF ++=
+      Option(rsp.lastModified).map((v) => lastModified ++ ByteString(HttpDate(v).asString) ++ CRLF).getOrElse(ByteString("")) ++=
       server ++= CRLF ++=
       connection ++= (if (rsp.shouldKeepAlive) keepAlive else close) ++= CRLF ++=
       ByteString("Transfer-Encoding: chunked") ++= CRLF ++= CRLF).result
@@ -111,17 +117,7 @@ trait ChunkedEncodable extends HttpResponse {
   def chunkedData: Enumerator[ByteString]
 }
 
-object OKResponse {
-  import HttpResponse._
-
-  def withFile(file: File) = OKResponse(
-    body = readFile(file),
-    shouldKeepAlive = true,
-    mimeType = new Tika().detect(file),
-    lastModified = new Date(file.lastModified))
-}
-
-case class OKResponse(body: ByteString, shouldKeepAlive: Boolean = true, mimeType: String = "text/html", lastModified: Date = null) extends HttpResponse {
+case class OKResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = true, mimeType: String = "text/html", lastModified: Date = null, etag: ByteString = null) extends HttpResponse {
   val status = ByteString("200")
   val reason = ByteString("OK")
 
@@ -139,28 +135,39 @@ object OKResponse {
   def stream(chunk: Enumerator[ByteString]) = new OKResponse(body = ByteString.empty, mimeType = "text/html") with ChunkedEncodable {
     def chunkedData: Enumerator[ByteString] = chunk
   }
+
+  def fromFile(file: File) = new OKResponse(
+    body = HttpResponse.readFile(file),
+    shouldKeepAlive = true,
+    mimeType = new Tika().detect(file),
+    lastModified = new Date(file.lastModified),
+    etag = ByteString(HttpResponse.computeETag(file)))
 }
 
 case class NotModifiedResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("304")
   val reason = ByteString("Not Modified")
-  val lastModified = null;
+  val lastModified = null
+  val etag = null
 }
 
 case class NotFoundError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("404")
   val reason = ByteString("Not Found")
-  val lastModified = null;
+  val lastModified = null
+  val etag = null
 }
 
 case class MethodNotAllowedError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("405")
   val reason = ByteString("Method Not Allowed")
-  val lastModified = null;
+  val lastModified = null
+  val etag = null
 }
 
 case class InternalServerError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
   val status = ByteString("500")
   val reason = ByteString("Internal Server Error")
-  val lastModified = null;
+  val lastModified = null
+  val etag = null
 }
