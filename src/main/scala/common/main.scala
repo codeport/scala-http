@@ -55,20 +55,23 @@ class RequestHandler extends Actor {
   def matchETag(headerValue: String, file: File): Boolean =
     matchETag(headerValue, computeETag(file))
 
+  // With If-Modified-Since, If-Match or If-None-Match header in request, check
+  // that this file is different with what the client has, so the server should
+  // resend this.
   def isModified(file: File, headers: Headers) =
     headers.get("if-modified-since") match {
       case Some(Header(_, value)) =>
-      HttpDate(value).asDate.compareTo(HttpDate(file.lastModified).asDate) match {
-        case -1 => false
-        case 0 => headers.get("if-match") match {
-          case Some(Header(_, value)) => matchETag(value, file)
-          case _ => headers.get("if-none-match") match {
-            case Some(Header(_, value)) => !matchETag(value, file)
-            case _ => false
+        HttpDate(value).asDate.compareTo(HttpDate(file.lastModified).asDate) match {
+          case -1 => false
+          case 0 => headers.get("if-match") match {
+            case Some(Header(_, value)) => matchETag(value, file)
+            case _ => headers.get("if-none-match") match {
+              case Some(Header(_, value)) => !matchETag(value, file)
+              case _ => false
+            }
           }
+          case _ => true
         }
-        case _ => true
-      }
       case _ => true
     }
 
