@@ -108,66 +108,15 @@ object HttpResponse {
       socket write chunkedMessageBody.compact
     }
 
-    // According to the HTTP spec, need to write 0 at the end of the chunk data
+    // According to the HTTP 1.1 spec, need to write 0 at the end of the chunk data
     socket write ByteString("0") ++ CRLF ++ CRLF
   }
 }
 
+/**
+ * Represents chunked data response
+ */
 trait ChunkedEncodable extends HttpResponse {
   def chunkedData: Enumerator[ByteString]
 }
 
-case class OKResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = true, mimeType: String = "text/html", lastModified: Date = null, etag: ByteString = null) extends HttpResponse {
-  val status = ByteString("200")
-  val reason = ByteString("OK")
-
-  def withMimeType(mimeType: String) = this match {
-    // In case of ChunkedEncodable, need to manually instantiate a new OKResponse with ChunkedEncodable 
-    // Instead of just using copy method in order to preserve the ChunkedEncodable type.
-    case t: ChunkedEncodable => new OKResponse(this.body, this.shouldKeepAlive, mimeType) with ChunkedEncodable {
-      def chunkedData: Enumerator[ByteString] = t.chunkedData
-    }
-    case _ => this.copy(mimeType = mimeType)
-  }
-}
-
-object OKResponse {
-  def stream(chunk: Enumerator[ByteString]) = new OKResponse(body = ByteString.empty, mimeType = "text/html") with ChunkedEncodable {
-    def chunkedData: Enumerator[ByteString] = chunk
-  }
-
-  def fromFile(file: File) = new OKResponse(
-    body = HttpResponse.readFile(file),
-    shouldKeepAlive = true,
-    mimeType = new Tika().detect(file),
-    lastModified = new Date(file.lastModified),
-    etag = ByteString(HttpResponse.computeETag(file)))
-}
-
-case class NotModifiedResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
-  val status = ByteString("304")
-  val reason = ByteString("Not Modified")
-  val lastModified = null
-  val etag = null
-}
-
-case class NotFoundError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
-  val status = ByteString("404")
-  val reason = ByteString("Not Found")
-  val lastModified = null
-  val etag = null
-}
-
-case class MethodNotAllowedError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
-  val status = ByteString("405")
-  val reason = ByteString("Method Not Allowed")
-  val lastModified = null
-  val etag = null
-}
-
-case class InternalServerError(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = false, mimeType: String = "") extends HttpResponse {
-  val status = ByteString("500")
-  val reason = ByteString("Internal Server Error")
-  val lastModified = null
-  val etag = null
-}
