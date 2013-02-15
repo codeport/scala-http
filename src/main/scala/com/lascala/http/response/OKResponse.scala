@@ -24,16 +24,18 @@ import java.io.File
 import java.util.Date
 import org.apache.tika.Tika
 
-case class OKResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Boolean = true,
-                      mimeType: String = "text/html",      lastModified: Date       = null,
-                      etag: ByteString = null) extends HttpResponse {
+case class OKResponse(body: ByteString         = ByteString.empty,
+                      shouldKeepAlive: Boolean = true,
+                      mimeType: String         = "text/html",
+                      lastModified: Date       = null,
+                      etag: ByteString         = null) extends HttpResponse {
   val status = ByteString("200")
   val reason = ByteString("OK")
 
   def withMimeType(mimeType: String) = this match {
-    // In case of ChunkedEncodable, need to manually instantiate a new OKResponse with ChunkedEncodable 
+    // In case of ChunkedEncodable, need to manually instantiate a new OKResponse with ChunkedEncodable
     // Instead of just using copy method in order to preserve the ChunkedEncodable type.
-    case t: ChunkedEncodable => 
+    case t: ChunkedEncodable =>
       new OKResponse(this.body, this.shouldKeepAlive, mimeType) with ChunkedEncodable {
         def chunkedData: Enumerator[ByteString] = t.chunkedData
       }
@@ -43,15 +45,15 @@ case class OKResponse(body: ByteString = ByteString.empty, shouldKeepAlive: Bool
 
 object OKResponse {
 
-  def stream(chunk: Enumerator[ByteString]) = 
+  def stream(chunk: Enumerator[ByteString]) =
     new OKResponse(body = ByteString.empty, mimeType = "text/html") with ChunkedEncodable {
       def chunkedData: Enumerator[ByteString] = chunk
     }
 
   def fromFile(file: File) = new OKResponse(
-    body = HttpResponse.readFile(file),
+    body            = HttpResponse.readFile(file),
     shouldKeepAlive = true,
-    mimeType = new Tika().detect(file),
-    lastModified = new Date(file.lastModified),
-    etag = ByteString(HttpResponse.computeETag(file)))
+    mimeType        = new Tika().detect(file),
+    lastModified    = new Date(file.lastModified),
+    etag            = ByteString(HttpResponse.computeETag(file)))
 }

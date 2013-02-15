@@ -18,6 +18,7 @@
 package com.lascala.http.request
 
 import akka.util.ByteString
+import com.lascala.http.Headers
 
 /**
  * http request 객체 및
@@ -30,27 +31,3 @@ case class HttpRequest(
   httpver: String,
   headers: Headers,
   body: Option[ByteString])
-
-case class Header(name: String, value: String)
-
-object Header {
-  val VALUE_SEPARATOR   = ","
-  val Q_PARAM_SEPARATOR = ";"
-  val Q_PARAM           = "q="
-
-  case class QParamHeader(value: String, qParam: Double)
-
-  def parseQparameters(header: Header) = header.value.split(VALUE_SEPARATOR).toSeq.map{
-    _ match {
-      case h if h contains(Q_PARAM_SEPARATOR) =>
-        val Array(value, qParam) = h.split(Q_PARAM_SEPARATOR)
-        val qRate = if(qParam.contains("q=")) qParam.split("q=").last.toDouble else 1.0
-        QParamHeader(value.trim, qRate)
-      case h => QParamHeader(h.trim, 1.0)
-    }
-  }.sortWith(_.qParam > _.qParam)
-}
-
-case class Headers(headers: List[Header]) {
-  def get(name: String) = headers.find(_.name.toLowerCase == name.toLowerCase)
-}

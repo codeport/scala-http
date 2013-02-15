@@ -27,7 +27,7 @@ import com.lascala.http._
 import com.lascala.http.HttpResponse._
 import java.io.File
 import com.lascala.libs.Enumerator
-import request.{HttpRequest, Header, Headers}
+import request.HttpRequest
 import response.error.{MethodNotAllowedError, NotFoundError}
 import response.OKResponse
 import response.other.NotModifiedResponse
