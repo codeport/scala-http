@@ -22,16 +22,25 @@ import akka.util.ByteString
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 import java.io.{OutputStream, ByteArrayOutputStream}
 
+/**
+ * Trait for Gzip support. Mix-in to response to compress body with GZIP
+ */
 trait GZipSupport extends BodyCompression {
   val compressionMethod = "gzip"
   def deflateOutputStream(os: OutputStream): DeflaterOutputStream = new GZIPOutputStream(os)
 }
 
+/**
+ * Trait for deflate support. Mix-in to response to compress body with deflater
+ */
 trait DeflateSupport extends BodyCompression {
   val compressionMethod = "deflate"
   def deflateOutputStream(os: OutputStream): DeflaterOutputStream = new DeflaterOutputStream(os)
 }
 
+/**
+ * Trait that provides default implementation for compressing body 
+ */
 trait BodyCompression extends Compression {
   def deflateOutputStream(os: OutputStream): DeflaterOutputStream
   def compressionMethod: String
@@ -52,6 +61,12 @@ trait BodyCompression extends Compression {
   }
 }
 
+/**
+ * Base trait for compression support. 
+ * As of Feb 2012, only gzip and deflate is honored. 
+ * If user wants to provide other compression support,
+ * this trait can be extended and mixed in to a response. 
+ */
 trait Compression extends HttpResponse {
   def compressionMethod: String
   override def bodyData: ByteString

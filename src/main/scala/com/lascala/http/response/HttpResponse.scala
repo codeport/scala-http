@@ -42,7 +42,7 @@ trait HttpResponse {
 
   def contentType   = ByteString(s"${Header.CONTENT_TYPE}: ${mimeType}")
   def cacheControl  = ByteString(Header.CACHE_CONTROL + ": no-cache")
-  def contentLength = ByteString(s"${Header.CONTENT_LANGUAGE}: ${body.length.toString}")
+  def contentLength = ByteString(s"${Header.CONTENT_LENGTH}: ${bodyData.length.toString}")
 }
 
 object HttpResponse {
