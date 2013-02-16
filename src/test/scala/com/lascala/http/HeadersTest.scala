@@ -24,7 +24,7 @@ import com.lascala.http.Headers.QParamHeader
 class HeadersTest extends FlatSpec with ShouldMatchers {
 
   "Headers" can "process Content-Encoding header with q parameters correctly" in {
-    val res = Headers.parseQparameters(Header("Content-Encoding","gzip; q=0.7, deflate; q=0.8, test; q=1.000, test2; q=0.000"))
+    val res = Headers.parseQparameters(Header(Header.ACCEPT_ENCODING,"gzip; q=0.7, deflate; q=0.8, test; q=1.000, test2; q=0.000"))
     val expectedQParamHeaders = Seq(
       QParamHeader("test", 1.000),
       QParamHeader("deflate", 0.8),
@@ -35,7 +35,7 @@ class HeadersTest extends FlatSpec with ShouldMatchers {
   }
 
   it can "process Content-Encoding header WITHOUT q parameters correctly" in {
-    val res = Headers.parseQparameters(Header("Content-Encoding","gzip, deflate, test, test2"))
+    val res = Headers.parseQparameters(Header(Header.ACCEPT_ENCODING,"gzip, deflate, test, test2"))
     val expectedQParamHeaders = Seq(
       QParamHeader("gzip", 1.0),
       QParamHeader("deflate", 1.0),
@@ -46,7 +46,7 @@ class HeadersTest extends FlatSpec with ShouldMatchers {
   }
 
   it can "process Content-Encoding header with values that may or may not have q values" in {
-    val res = Headers.parseQparameters(Header("Content-Encoding","gzip; q=0.7, deflate, test; q=0.5, test2"))
+    val res = Headers.parseQparameters(Header(Header.ACCEPT_ENCODING,"gzip; q=0.7, deflate, test; q=0.5, test2"))
 
     val expectedQParamHeaders = Seq(
       QParamHeader("deflate", 1.0),
@@ -59,22 +59,22 @@ class HeadersTest extends FlatSpec with ShouldMatchers {
 
   it can "retrieve the highest priority content encoding based on q parameter" in {
     val headers = List(
-      Header(Header.ACCEPT_CHARSET, "Accept-Charset: utf-8"),
-      Header(Header.CONTENT_ENCODING, "gzip; q=0.7, deflate, test; q=0.5, test2"),
-      Header(Header.ACCEPT, "Accept: text/plain")
+      Header(Header.ACCEPT_CHARSET, "utf-8"),
+      Header(Header.ACCEPT_ENCODING, "gzip; q=0.7, deflate, test; q=0.5, test2"),
+      Header(Header.ACCEPT, "text/plain")
     )
 
-    Headers(headers).topContentEncoding should be (Some("deflate"))
+    Headers(headers).topAcceptEncoding should be (Some("deflate"))
   }
 
   it can "retrieve content encodings in priority order based on q parameter" in {
     val headers = List(
-        Header(Header.ACCEPT_CHARSET, "Accept-Charset: utf-8"),
-        Header(Header.CONTENT_ENCODING, "gzip; q=0.7, deflate, test; q=0.5, test2"),
-        Header(Header.ACCEPT, "Accept: text/plain")
+        Header(Header.ACCEPT_CHARSET, "utf-8"),
+        Header(Header.ACCEPT_ENCODING, "gzip; q=0.7, deflate, test; q=0.5, test2"),
+        Header(Header.ACCEPT, "text/plain")
     )
 
-    Headers(headers).contentEncodings should not be (Seq("test2", "test", "gzip", "deflate"))
-    Headers(headers).contentEncodings should be (Seq("deflate", "test2", "gzip", "test"))
+    Headers(headers).acceptEncodings should not be (Seq("test2", "test", "gzip", "deflate"))
+    Headers(headers).acceptEncodings should be (Seq("deflate", "test2", "gzip", "test"))
   }
 }

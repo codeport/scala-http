@@ -36,10 +36,20 @@ case class OKResponse(body: ByteString         = ByteString.empty,
     // In case of ChunkedEncodable, need to manually instantiate a new OKResponse with ChunkedEncodable
     // Instead of just using copy method in order to preserve the ChunkedEncodable type.
     case t: ChunkedEncodable =>
-      new OKResponse(this.body, this.shouldKeepAlive, mimeType) with ChunkedEncodable {
+      new OKResponse(this.body, this.shouldKeepAlive, mimeType, this.lastModified, this.etag) with ChunkedEncodable {
         def chunkedData: Enumerator[ByteString] = t.chunkedData
       }
     case _ => this.copy(mimeType = mimeType)
+  }
+
+  def withGzipCompression = this match {
+    // In case of ChunkedEncodable, need to manually instantiate a new OKResponse with ChunkedEncodable
+    // Instead of just using copy method in order to preserve the ChunkedEncodable type.
+    case t: ChunkedEncodable =>
+      new OKResponse(this.body, this.shouldKeepAlive, this.mimeType, this.lastModified, this.etag) with GZipSupport with ChunkedEncodable {
+        def chunkedData: Enumerator[ByteString] = t.chunkedData
+      }
+    case _ => new OKResponse(this.body, this.shouldKeepAlive, this.mimeType, this.lastModified, this.etag) with GZipSupport
   }
 }
 

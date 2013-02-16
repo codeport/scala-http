@@ -1,19 +1,19 @@
 /*
  * This software is licensed under the Apache 2 license, quoted below.
- *  
+ *
  *  Copyright 2009-2012 Typesafe Inc. <http://www.typesafe.com>
- *  
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- *  
+ *
  *  http://www.apache.org/licenses/LICENSE-2.0
- *  
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
- * the License. 
+ * the License.
  */
 package com.lascala.http
 
@@ -21,19 +21,14 @@ import com.lascala.http.HttpConstants._
 
 import akka.util.{ByteString, ByteStringBuilder}
 import java.io.File
-import org.apache.tika.Tika
 import java.io.FileInputStream
 import java.util.Date
-import java.util.Locale
-import java.text.SimpleDateFormat
-import java.util.TimeZone
 import akka.actor.IO
-import util.Failure
 import com.lascala.libs.Enumerator
 import java.security.MessageDigest
 import java.security.DigestInputStream
 import java.io.BufferedInputStream
-import com.lascala.http.HttpDate._
+import response.Compression
 
 trait HttpResponse {
   def lastModified: Date
@@ -43,25 +38,27 @@ trait HttpResponse {
   def reason: ByteString
   def mimeType: String
   def shouldKeepAlive: Boolean
+  def bodyData: ByteString = body
 
-  def contentType   = ByteString(s"Content-Type: ${mimeType}")
-  def cacheControl  = ByteString("Cache-Control: no-cache")
-  def contentLength = ByteString(s"Content-Length: ${body.length.toString}")
+  def contentType   = ByteString(s"${Header.CONTENT_TYPE}: ${mimeType}")
+  def cacheControl  = ByteString(Header.CACHE_CONTROL + ": no-cache")
+  def contentLength = ByteString(s"${Header.CONTENT_LANGUAGE}: ${body.length.toString}")
 }
 
 object HttpResponse {
   val version      = ByteString("HTTP/1.1")
-  val server       = ByteString("Server: lascala-http")
-  val connection   = ByteString("Connection: ")
-  val keepAlive    = ByteString("Keep-Alive")
+  val server       = ByteString(s"${Header.SERVER}: lascala-http")
+  val connection   = ByteString(s"${Header.CONNECTION}: ")
+  val keepAlive    = ByteString(s"Keep-Alive")
   val close        = ByteString("Close")
-  val date         = ByteString("Date: ")
-  val lastModified = ByteString("Last-Modified: ")
-  val etag = ByteString("ETag: ")
+  val date         = ByteString(s"${Header.DATE}: ")
+  val lastModified = ByteString(s"${Header.LAST_MODIFIED}: ")
+  val etag         = ByteString(s"${Header.ETAG}: ")
 
 	def readFile(file: File) = {
     val resource = new Array[Byte](file.length.toInt)
-    val in = new FileInputStream(file)
+    val in       = new FileInputStream(file)
+
     in.read(resource)
     in.close()
     ByteString(resource)
@@ -69,36 +66,37 @@ object HttpResponse {
 
   def computeETag(file: File) = {
     val algorithm = MessageDigest.getInstance("SHA1")
-    val dis = new DigestInputStream(new BufferedInputStream(new FileInputStream(file)), algorithm)
+    val dis       = new DigestInputStream(new BufferedInputStream(new FileInputStream(file)), algorithm)
     while (dis.read() != -1) {}
     algorithm.digest().fold("")(_ + "%02x" format _).toString
   }
 
-  def bytes(rsp: HttpResponse) = {
-    (new ByteStringBuilder ++=
-    version ++= SP ++= rsp.status ++= SP ++= rsp.reason ++= CRLF ++=
-    (if(rsp.body.nonEmpty || rsp.mimeType.nonEmpty) rsp.contentType ++ CRLF else ByteString.empty) ++=
-    rsp.cacheControl ++= CRLF ++=
-    date ++= ByteString(HttpDate(new Date).asString) ++= CRLF ++=
-    Option(rsp.lastModified).map((v) => lastModified ++ ByteString(HttpDate(v).asString) ++ CRLF).getOrElse(ByteString("")) ++=
-    Option(rsp.etag).map(etag ++ _ ++ CRLF).getOrElse(ByteString("")) ++=
-    server ++= CRLF ++=
-    rsp.contentLength ++= CRLF ++=
-    connection ++= (if (rsp.shouldKeepAlive) keepAlive else close) ++= CRLF ++= CRLF ++= rsp.body).result
-  }
-
-  def stream(rsp: HttpResponse with ChunkedEncodable, socket: IO.SocketHandle) = {
-    val headers = (new ByteStringBuilder ++=
+  def headers(rsp: HttpResponse, chunkedEncoding: Boolean = false) = {
+   val header = new ByteStringBuilder ++=
       version ++= SP ++= rsp.status ++= SP ++= rsp.reason ++= CRLF ++=
-      rsp.contentType ++ CRLF ++=
+      (if(rsp.bodyData.nonEmpty || rsp.mimeType.nonEmpty) rsp.contentType ++ CRLF else ByteString.empty) ++=
       rsp.cacheControl ++= CRLF ++=
       date ++= ByteString(HttpDate(new Date).asString) ++= CRLF ++=
       Option(rsp.lastModified).map((v) => lastModified ++ ByteString(HttpDate(v).asString) ++ CRLF).getOrElse(ByteString("")) ++=
+      Option(rsp.etag).map(etag ++ _ ++ CRLF).getOrElse(ByteString("")) ++=
       server ++= CRLF ++=
-      connection ++= (if (rsp.shouldKeepAlive) keepAlive else close) ++= CRLF ++=
-      ByteString("Transfer-Encoding: chunked") ++= CRLF ++= CRLF).result
+      (if(chunkedEncoding) ByteString.empty else rsp.contentLength) ++=
+      CRLF ++= connection ++= (if (rsp.shouldKeepAlive) keepAlive else close)
 
-    socket write headers.compact
+   // If content encoding has been applied, specify so in the header
+   rsp match {
+     case c: Compression => header ++= CRLF ++= ByteString(s"${Header.CONTENT_ENCODING}: ${c.compressionMethod}")
+     case _ => header
+   }
+  }
+
+  def bytes(rsp: HttpResponse) = (headers(rsp) ++= CRLF ++= CRLF ++= rsp.bodyData).result
+
+  def stream(rsp: HttpResponse with ChunkedEncodable, socket: IO.SocketHandle) {
+    val header = (headers(rsp, chunkedEncoding = true) ++= CRLF
+      ++= ByteString("Transfer-Encoding: chunked") ++= CRLF ++= CRLF).result
+
+    socket write header.compact
 
     rsp.chunkedData.foreach { chunk =>
       val chunkedMessageBody = (

@@ -29,7 +29,7 @@ import java.io.File
 import com.lascala.libs.Enumerator
 import request.HttpRequest
 import response.error.{MethodNotAllowedError, NotFoundError}
-import response.OKResponse
+import response.{SupportedCompression, OKResponse}
 import response.other.NotModifiedResponse
 
 /**
@@ -76,13 +76,24 @@ class RequestHandler extends Actor {
     case HttpRequest("GET", List("download"), _, _, headers, _) =>
       sender !  OKResponse.stream(getEnumerator).withMimeType("text/plain")
     case HttpRequest("GET", pathSegments, _, _, headers, _) =>
-      new File(docroot, "/" + pathSegments.mkString(File.separator)) match {
-        case file if file.isFile() =>
-          if (isModified(file, headers)) sender ! OKResponse.fromFile(file)
-          else sender ! NotModifiedResponse()
-        case _ => sender ! NotFoundError()
-      }
+      val file = new File(docroot, "/" + pathSegments.mkString(File.separator))
+      sendFile(file, headers)
     case _ => sender ! MethodNotAllowedError()
+  }
+
+  private def sendFile(file: File, headers: Headers)  {
+    file.isFile match {
+      case true =>
+        if (isModified(file, headers)) {
+          val resp = headers.topAcceptEncoding.exists(_ == SupportedCompression.GZIP) match {
+            case true => OKResponse.fromFile(file).withGzipCompression
+            case false => OKResponse.fromFile(file)
+          }
+
+          sender ! resp
+        } else sender ! NotModifiedResponse()
+      case false => sender ! NotFoundError()
+    }
   }
 
   private def getEnumerator = {
