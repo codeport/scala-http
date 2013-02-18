@@ -77,4 +77,16 @@ class HeadersTest extends FlatSpec with ShouldMatchers {
     Headers(headers).acceptEncodings should not be (Seq("test2", "test", "gzip", "deflate"))
     Headers(headers).acceptEncodings should be (Seq("deflate", "test2", "gzip", "test"))
   }
+
+  it can "parse headers that have white spaces between 'q' and '=' in q param" in {
+    val headers = List(
+        Header(Header.ACCEPT_CHARSET, "utf-8"),
+        Header(Header.ACCEPT_ENCODING, "gzip; q =0.7, deflate, test; q = 0.5, test2"),
+        Header(Header.ACCEPT, "text/plain")
+    )
+
+    Headers(headers).acceptEncodings should not be (Seq("test2", "test", "gzip", "deflate"))
+    Headers(headers).acceptEncodings should be (Seq("deflate", "test2", "gzip", "test"))
+  }
+
 }

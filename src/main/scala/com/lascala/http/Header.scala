@@ -95,7 +95,23 @@ object Headers {
 
   case class QParamHeader(value: String, qParam: Double)
 
-  def parseQparameters(header: Header) = header.value.split(VALUE_SEPARATOR).toSeq.map{
+  /**
+   * 1. q값은 0.000부터 1.000까지 가능하며(소수점 세자리까지 사용가능) 이 값에 의해 우선순위가 결정됩니다. 
+   * 예) "Accept-Encoding: gzip; q=0.7, deflate; q=0.8" 라면 deflate가 우선순위가 높음
+   * 
+   * 2. q 파라메터가 지정되지 않은 경우, 순서는 우선순위와 아무 관련이 없습니다. 
+   * 예) "Accept-Encoding: gzip, defalte"는 gzip이 deflate보다 우선순위가 높다는 의미가 아님.
+   * 
+   * 3. 2에도 불구하고, q 파라메터가 없는 경우에 순서를 우선순위로 간주하는 클라이언트가 있을 수 있습니다. 
+   * 따라서 q 파라메터가 없을 때는 그냥 순서를 우선순위로 가정하고 처리하는 것이 좋습니다.
+   * 그렇게 한다고 해서 스펙을 위반하는 것은 아니기 때문입니다.
+   *
+   * 4. A lack of a q param should be treated as having a q param = 1.0  . Thus, if some values are mssing
+   * q param, thye should be taken as if they have q param = 1.0
+   *
+   * 5. Between "q" and "=" can be LWS(Linear White Space). 
+   */
+  def parseQparameters(header: Header) = header.value.replaceAll("\\s+","").split(VALUE_SEPARATOR).toSeq.map{
     _.split(Q_PARAM_SEPARATOR) match {
       case Array(value, qParam) =>
         val qRate = if(qParam.contains(Q_PARAM)) qParam.split(Q_PARAM).last.toDouble else 1.0
