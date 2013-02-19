@@ -111,7 +111,7 @@ object Headers {
    *
    * 5. Between "q" and "=" can be LWS(Linear White Space). 
    */
-  def parseQparameters(header: Header) = header.value.replaceAll("\\s+","").split(VALUE_SEPARATOR).toSeq.map{
+  def parseQparameters(header: Header) = header.value.replaceAll("[\\s\\r\\n]","").split(VALUE_SEPARATOR).toSeq.map{
     _.split(Q_PARAM_SEPARATOR) match {
       case Array(value, qParam) =>
         val qRate = if(qParam.contains(Q_PARAM)) qParam.split(Q_PARAM).last.toDouble else 1.0
