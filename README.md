@@ -21,4 +21,5 @@ Features
 * Serving static files
 * Caching
 * Chunked-Encoding
+* Content-Encoding
 
