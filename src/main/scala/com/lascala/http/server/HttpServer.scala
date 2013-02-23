@@ -19,10 +19,12 @@ package com.lascala.http
 
 import akka.actor._
 import java.net.InetSocketAddress
+import response.error.InternalServerError
+
 import util.{Success, Failure}
 
 object HttpServer {
-  import HttpIteratees._
+  import server.HttpIteratees._
   import akka.pattern.ask
   import akka.util.Timeout
   import concurrent.ExecutionContext.Implicits.global
